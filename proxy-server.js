@@ -2,8 +2,9 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const gremlin = require("gremlin");
 const cors = require("cors");
+const config = require('./config');
+
 const app = express();
-const port = 3001;
 
 app.use(
   cors({
@@ -17,11 +18,6 @@ app.use(bodyParser.json());
 function mapToObj(inputMap) {
   let obj = {};
 
-  // inputMap.forEach((value, key) => {
-  //   obj[key] = value;
-  // });
-
-  // cosmos
   for (const prop in inputMap) {
     obj[prop] = inputMap[prop][0];
   }
@@ -30,17 +26,6 @@ function mapToObj(inputMap) {
 }
 
 function edgesToJson(edgeList) {
-  // return edgeList.map((edge) => ({
-  //   id:
-  //     typeof edge.get("id") !== "string"
-  //       ? JSON.stringify(edge.get("id"))
-  //       : edge.get("id"),
-  //   from: edge.get("from"),
-  //   to: edge.get("to"),
-  //   label: edge.get("label"),
-  //   properties: mapToObj(edge.get("properties")),
-  // }));
-  // cosmos
   return edgeList.map((edge) => ({
     id: typeof edge.id !== "string" ? JSON.stringify(edge.id) : edge.id,
     from: edge.from,
@@ -60,15 +45,10 @@ function nodesToJson(nodeList) {
 }
 
 function makeQuery(query, nodeLimit) {
-  // const nodeLimitQuery =
-  //   !isNaN(nodeLimit) && Number(nodeLimit) > 0 ? `.limit(${nodeLimit})` : "";
-  // return `${query}${nodeLimitQuery}.dedup().as('node').project('id', 'label', 'properties', 'edges').by(__.id()).by(__.label()).by(__.valueMap().by(__.unfold())).by(__.outE().project('id', 'from', 'to', 'label', 'properties').by(__.id()).by(__.select('node').id()).by(__.inV().id()).by(__.label()).by(__.valueMap().by(__.unfold())).fold())`;
-
-  // cosmos
   const nodeLimitQuery =
     !isNaN(nodeLimit) && Number(nodeLimit) > 0 ? `.limit(${nodeLimit})` : "";
-  // return `${query}${nodeLimitQuery}.dedup().as('node').project('id', 'label', 'properties', 'edges').by(__.id()).by(__.label()).by(__.valueMap().by(__.unfold())).by(__.outE().project('id', 'from', 'to', 'label', 'properties').by(__.id()).by(__.select('node').id()).by(__.inV().id()).by(__.label()).by(__.valueMap().by(__.unfold())).fold())`;
-  return `${query}${nodeLimitQuery}.dedup().as('node').project('id', 'label', 'properties', 'edges').by(__.id()).by(__.label()).by(__.valueMap()).by(__.outE().project('id', 'from', 'to', 'label', 'properties').by(__.id()).by(__.select('node').id()).by(__.inV().id()).by(__.label()).by(__.valueMap()).fold())`;
+  
+    return `${query}${nodeLimitQuery}.dedup().as('node').project('id', 'label', 'properties', 'edges').by(__.id()).by(__.label()).by(__.valueMap()).by(__.outE().project('id', 'from', 'to', 'label', 'properties').by(__.id()).by(__.select('node').id()).by(__.inV().id()).by(__.label()).by(__.valueMap()).fold())`;
 }
 
 app.post("/query", (req, res, next) => {
@@ -77,18 +57,10 @@ app.post("/query", (req, res, next) => {
   const nodeLimit = req.body.nodeLimit;
   const query = req.body.query;
 
-  // const client = new gremlin.driver.Client(`ws://localhost:8182/gremlin`, {
-  //   traversalSource: "g",
-  //   mimeType: "application/json",
-  // });
+  const authenticator = new gremlin.driver.auth.PlainTextSaslAuthenticator(`/dbs/${config.database}/colls/${config.collection}`, config.primaryKey)
 
-  // cosmos
-  const authenticator = new gremlin.driver.auth.PlainTextSaslAuthenticator(
-    '/dbs/<DB ID>/colls/<Graph ID>',
-    "<PRIMARY KEY>"
-  );
   const client = new gremlin.driver.Client(
-    'wss://<COSMOS ID>.gremlin.cosmos.azure.com:443/',
+    config.endpoint,
     {
       authenticator,
       traversalsource: "g",
@@ -103,6 +75,4 @@ app.post("/query", (req, res, next) => {
     .catch((err) => next(err));
 });
 
-app.listen(port, () =>
-  console.log(`Simple gremlin-proxy server listening on port ${port}!`)
-);
+app.listen(config.port, () => console.log(`Simple Gremlin proxy-server listening on port ${config.port}!`));
